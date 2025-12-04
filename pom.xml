@@ -1,15 +1,171 @@
-
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
-    <groupId>com.example</groupId>
-    <artifactId>excelsiorjet-demo-app</artifactId>
-    <version>1.0.0</version>
-    <packaging>pom</packaging>
 
-    <modules>
-        <module>excelsiorjet-custom-app</module>
-        <module>excelsiorjet-primary-app</module>
-    </modules>
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.example</groupId>
+        <artifactId>excelsiorjet-demo-app</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>excelsiorjet-primary-app</artifactId>
+    <packaging>jar</packaging>
+
+    <properties>
+        <java.version>1.8</java.version>
+        <main.class>com.example.swingapp.App</main.class>
+
+        <!-- Set this to your local Excelsior JET installation path or override with -Djet.home -->
+        <jet.home>${env.JET_HOME}</jet.home>
+        <!-- Excelsior plugin version -->
+        <excelsior.jet.plugin.version>1.3.0</excelsior.jet.plugin.version>
+    </properties>
+
+    <dependencies>
+
+        <!-- Your existing dependency -->
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>excelsiorjet-custom-app</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
+        <!-- LOG4J2 DEPENDENCIES (left as-is per your original pom) -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>2.22.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.22.1</version>
+        </dependency>
+
+        <!-- Bridge SLF4J → Log4j2 -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j2-impl</artifactId>
+            <version>2.22.1</version>
+        </dependency>
+
+    </dependencies>
+
+    <!-- Add Excelsior plugin repo so Maven can fetch the plugin -->
+    <pluginRepositories>
+        <pluginRepository>
+            <id>excelsior-jet</id>
+            <name>Excelsior JET Maven repo</name>
+            <url>https://repo.excelsior-jet.com/maven2</url>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <build>
+        <plugins>
+
+            <!-- Disable Boot repackage (shade creates final jar) -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>2.3.12.RELEASE</version>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+
+            <!-- SHADE PLUGIN FOR FAT JAR -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.4.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+
+                            <transformers>
+
+                                <!-- REAL Manifest -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>${main.class}</mainClass>
+                                </transformer>
+
+                                <!-- REQUIRED FOR SPRING BOOT -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>META-INF/spring.factories</resource>
+                                </transformer>
+
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>META-INF/spring.handlers</resource>
+                                </transformer>
+
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>META-INF/spring.schemas</resource>
+                                </transformer>
+
+                                <!-- REQUIRED FOR LOG4J2 -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat</resource>
+                                </transformer>
+
+                                <!-- Merge META-INF/services/... -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Excelsior JET Maven Plugin -->
+            <plugin>
+                <groupId>com.excelsiorjet</groupId>
+                <artifactId>excelsior-jet-maven-plugin</artifactId>
+                <version>${excelsior.jet.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>excelsior-jet-build</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>build</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <!-- main class to be used by Excelsior JET -->
+                    <mainClass>${main.class}</mainClass>
+
+                    <!-- Path to your Excelsior JET installation (set via property or env var) -->
+                    <jetHome>${jet.home}</jetHome>
+
+                    <!--                    <guiApplication>true</guiApplication>-->
+
+
+                    <!-- Output settings -->
+                    <outputDirectory>${project.build.directory}/excelsiorjet</outputDirectory>
+                    <outputName>${project.artifactId}</outputName>
+                    <productName>${project.artifactId}</productName>
+                    <productVersion>${project.version}</productVersion>
+
+                    <!-- Use the shaded jar as input (recommended) -->
+                    <useShadedJar>true</useShadedJar>
+                    <shadedJar>${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</shadedJar>
+
+                    <!-- Additional options can be placed here -->
+                    <!-- <targetPlatform>win</targetPlatform> -->
+                    <!-- <jvmOptions>-Xmx512m</jvmOptions> -->
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+
 </project>
